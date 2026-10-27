@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ajedrez</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<section id="lobby">
+  <div class="card">
+    <div class="logo">♞</div>
+    <h1>Ajedrez</h1>
+    <p class="sub">Escribe un código de 4 cifras. Quien meta el mismo código entra en tu partida.</p>
+    <input id="code" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000" aria-label="Código de 4 cifras">
+    <button id="play" class="btn" style="width:100%" disabled>Jugar</button>
+    <div id="err"></div>
+  </div>
+</section>
+
+<section id="game" hidden>
+  <div class="left">
+    <div class="bar" id="topBar"></div>
+    <div class="wrap"><div id="board"></div><div id="promo" hidden></div></div>
+    <div class="bar" id="botBar"></div>
+  </div>
+  <div class="panel">
+    <div class="head">Partida <span id="roomCode"></span></div>
+    <div id="status"></div>
+    <div id="moves"></div>
+    <div class="acts">
+      <button class="btn2" id="flip">Girar</button>
+      <button class="btn2" id="resign">Rendirse</button>
+      <button class="btn2" id="rematch" hidden style="background:var(--green)">Revancha</button>
+      <button class="btn2" id="leave">Salir</button>
+    </div>
+  </div>
+</section>
+
+<script src="script.js"></script>
+</body></html>
