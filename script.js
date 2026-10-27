@@ -162,30 +162,45 @@ function onPeers(ch){
 }
 function connectRoom(c){
   return new Promise((resolve,reject)=>{
-    const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
-    let me=null,ids=[],H={},PH=[];
-    const api={
-      emit:(t,d)=>{if(ws.readyState===1)ws.send(JSON.stringify({t:'emit',topic:t,data:d}));return Promise.resolve();},
-      on:(t,f)=>{(H[t]=H[t]||[]).push(f);},
+    let ws, me=null, ids=[], H={}, PH=[], resolved=false;
+    
+    function initWS(){
+      ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
+      
+      ws.onopen = () => ws.send(JSON.stringify({t:'join',code:c}));
+      ws.onerror = err => { if(!resolved) reject(new Error('ws')); };
+      ws.onclose = () => {
+        ids = ids.filter(x=>x===me);
+        PH.forEach(f=>f({joined:[]}));
+        setTimeout(() => { if(room) initWS(); }, 2000);
+      };
+      
+      ws.onmessage = ev => {
+        const m = JSON.parse(ev.data);
+        if(m.t==='hello'){
+          me = m.id;
+          if(!resolved){ resolved=true; resolve(api); }
+          else { sendSync(); }
+        } else if(m.t==='peers'){
+          const old = ids; ids = m.ids;
+          const joined = api.peers().filter(p=>!old.includes(p.peer));
+          PH.forEach(f=>f({joined}));
+        } else if(m.t==='msg'){
+          (H[m.topic]||[]).forEach(f=>f({sameTab:false,isMe:false,peer:m.from,data:m.data}));
+        }
+      };
+    }
+    
+    const api = {
+      emit:(t,d)=>{ if(ws && ws.readyState===1) ws.send(JSON.stringify({t:'emit',topic:t,data:d})); return Promise.resolve(); },
+      on:(t,f)=>{ (H[t]=H[t]||[]).push(f); },
       peers:()=>ids.map(id=>({peer:id,kind:'viewer',sameTab:id===me,isMe:id===me})),
-      onPeers:f=>{PH.push(f);if(ids.length)f({joined:api.peers()});},
+      onPeers:f=>{ PH.push(f); if(ids.length)f({joined:api.peers()}); },
       onConnection:()=>{},
-      leave:()=>{ws.close();return Promise.resolve();}
+      leave:()=>{ if(ws) ws.close(); return Promise.resolve(); }
     };
-    ws.onopen=()=>ws.send(JSON.stringify({t:'join',code:c}));
-    ws.onerror=()=>reject(new Error('ws'));
-    ws.onclose=()=>{ids=ids.filter(x=>x===me);PH.forEach(f=>f({joined:[]}));};
-    ws.onmessage=ev=>{
-      const m=JSON.parse(ev.data);
-      if(m.t==='hello'){me=m.id;resolve(api);}
-      else if(m.t==='peers'){
-        const old=ids;ids=m.ids;
-        const joined=api.peers().filter(p=>!old.includes(p.peer));
-        PH.forEach(f=>f({joined}));
-      }else if(m.t==='msg'){
-        (H[m.topic]||[]).forEach(f=>f({sameTab:false,isMe:false,peer:m.from,data:m.data}));
-      }
-    };
+    
+    initWS();
   });
 }
 async function join(c){
