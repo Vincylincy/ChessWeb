@@ -21,19 +21,22 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server });
-const rooms = new Map(); // codigo -> Set<ws>
+const rooms = new Map();
 let counter = 0;
 
 function broadcastPeers(code) {
   const set = rooms.get(code);
   if (!set) return;
   const ids = [...set].map(w => w.id);
-  for (const w of set) w.send(JSON.stringify({ t: 'peers', ids }));
+  for (const w of set) if (w.readyState === 1) w.send(JSON.stringify({ t: 'peers', ids }));
 }
 
 wss.on('connection', ws => {
   ws.id = 'p' + (++counter) + Math.random().toString(36).slice(2, 6);
   ws.code = null;
+  ws.isAlive = true;
+
+  ws.on('pong', () => { ws.isAlive = true; });
 
   ws.on('message', raw => {
     let m;
@@ -55,11 +58,23 @@ wss.on('connection', ws => {
   ws.on('close', () => {
     if (!ws.code) return;
     const set = rooms.get(ws.code);
-    set.delete(ws);
-    if (set.size === 0) rooms.delete(ws.code);
-    else broadcastPeers(ws.code);
+    if (set) {
+      set.delete(ws);
+      if (set.size === 0) rooms.delete(ws.code);
+      else broadcastPeers(ws.code);
+    }
   });
 });
+
+const interval = setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
+
+wss.on('close', () => clearInterval(interval));
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('Ajedrez en http://localhost:' + PORT));
